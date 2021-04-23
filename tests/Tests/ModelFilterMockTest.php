@@ -7,6 +7,7 @@ use EloquentFilter\ModelFilter;
 use eloquentFilter\QueryFilter\ModelFilters\Filterable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Mockery as m;
 use Tests\Models\CustomDetect\WhereRelationLikeCondition;
 use Tests\Models\User;
@@ -204,6 +205,27 @@ class ModelFilterMockTest extends \TestCase
         ]);
 
         $users = EloquentBuilderTestModelCloseRelatedStub::filter($this->request->query());
+
+        $this->assertSame($users->toSql(), $builder->toSql());
+
+        $this->assertEquals([35], $users->getBindings());
+    }
+
+    public function testWhereByOptWithTrashed()
+    {
+        $builder = new EloquentBuilderTestModelCloseRelatedStub();
+
+        $builder = $builder->newQuery()->withTrashed()
+            ->where('count_posts', '>', 35);
+
+        $this->request->shouldReceive('query')->andReturn([
+            'count_posts' => [
+                'operator' => '>',
+                'value'    => 35,
+            ],
+        ]);
+
+        $users = EloquentBuilderTestModelCloseRelatedStub::withTrashed()->ignoreRequest(['id'])->filter($this->request->query());
 
         $this->assertSame($users->toSql(), $builder->toSql());
 
@@ -1037,6 +1059,51 @@ class ModelFilterMockTest extends \TestCase
         $this->assertNotEquals(['mehdifathi.developer@gmail.com'], $users->getBindings());
     }
 
+    public function testIgnoreRequestConfig()
+    {
+        config(['eloquentFilter.ignore_request' => ['show_query', 'new_trend']]);
+
+        $builder = new EloquentBuilderTestModelNewStrategyStub();
+
+        $builder = $builder->query()
+            ->where('email', 'mehdifathi.developer@gmail.com');
+
+        $this->request->shouldReceive('query')->andReturn([
+            'email'     => 'mehdifathi.developer@gmail.com',
+            'show_query'=> true,
+            'new_trend' => '2021',
+        ]);
+
+        $users = EloquentBuilderTestModelNewStrategyStub::filter($this->request->query());
+
+        $this->assertSame($users->toSql(), $builder->toSql());
+
+        $this->assertEquals(['mehdifathi.developer@gmail.com'], $users->getBindings());
+    }
+
+    public function testIgnoreRequestBeforeSetConfig()
+    {
+        config(['eloquentFilter.ignore_request' => ['show_query', 'new_trend']]);
+
+        $builder = new EloquentBuilderTestModelNewStrategyStub();
+
+        $builder = $builder->query()
+            ->where('email', 'mehdifathi.developer@gmail.com');
+
+        $this->request->shouldReceive('query')->andReturn([
+            'email'     => 'mehdifathi.developer@gmail.com',
+            'id'        => 99,
+            'show_query'=> true,
+            'new_trend' => '2021',
+        ]);
+
+        $users = EloquentBuilderTestModelNewStrategyStub::ignoreRequest(['id'])->filter($this->request->query());
+
+        $this->assertSame($users->toSql(), $builder->toSql());
+
+        $this->assertEquals(['mehdifathi.developer@gmail.com'], $users->getBindings());
+    }
+
     public function testTrueEnabledConfig()
     {
         config(['eloquentFilter.enabled' => true]);
@@ -1171,6 +1238,7 @@ class EloquentBuilderTestModelParentStub extends Model
 class EloquentBuilderTestModelCloseRelatedStub extends Model
 {
     use Filterable;
+    use SoftDeletes;
 
     /**
      * @var array
